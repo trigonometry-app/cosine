@@ -1,19 +1,22 @@
-// credit to lm arena hard prompts
+// credit to arena ai hard prompts
 export const elos: Record<string, number> = Object.fromEntries(
   (
     [
-      [1530, 'Claude Opus 4.6'],
-      [1524, 'Gemini 3.1 Pro Thinking'],
-      [1503, 'Gemini 3 Pro Thinking'],
+      [1536, 'Claude Opus 4.6'],
+      [1515, 'Gemini 3.1 Pro Thinking'],
+      [1504, 'GPT 5.4 Thinking'],
+      [1504, 'Gemini 3 Pro Thinking'],
+      [1499, 'Claude Sonnet 4.6'],
       [1497, 'Claude Opus 4.5'],
-      [1491, 'Gemini 3 Flash Thinking'],
-      [1487, 'Claude Sonnet 4.6'],
-      [1482, 'Claude Sonnet 4.5 Thinking'],
-      [1479, 'Gemini 3 Flash'],
-      [1478, 'Claude Sonnet 4.5'],
-      [1476, 'GPT 5.1 Thinking'],
-      [1476 - 20, 'GPT 5.1 Codex Max Thinking'], // est
-      [1476 - 20, 'GPT 5.1 Codex Thinking'], // est
+      [1494, 'Gemini 3 Flash Thinking'],
+      [1491, 'GLM 5.1 Thinking'],
+      [1485, 'Claude Sonnet 4.5 Thinking'],
+      [1481, 'Claude Sonnet 4.5'],
+      [1480, 'Gemini 3 Flash'],
+      [1474, 'Gemma 4 31b Thinking'],
+      [1474, 'GPT 5.1 Thinking'],
+      [1474 - 20, 'GPT 5.1 Codex Max Thinking'], // est
+      [1474 - 20, 'GPT 5.1 Codex Thinking'], // est
       [1473, 'Qwen3.5 397b A17b Thinking'],
       [1473 - 10, 'Qwen3.5 397b A17b'], // est
       [1472, 'GLM 5 Thinking'],
@@ -21,6 +24,7 @@ export const elos: Record<string, number> = Object.fromEntries(
       [1470, 'Kimi K2.5 Thinking'],
       [1468 - 20 /* penalty for quant */, 'Kimi K2.5'],
       [1466, 'GPT 5.2'],
+      [1462, 'Gemma 4 26b A4b Thinking'],
       [1462, 'GLM 4.7 Thinking'],
       [1462 - 10, 'GLM 4.7'], // est
       [1461, 'GPT 5.2 Thinking'],
@@ -29,6 +33,7 @@ export const elos: Record<string, number> = Object.fromEntries(
       [1460, 'Gemini 2.5 Pro Thinking'],
       [1453, 'GPT 5.1'],
       [1450, 'Kimi K2 Thinking'],
+      [1448, 'Gemini 3.1 Flash Lite'],
       [1448, 'GPT 5 chat'],
       [1447, 'Qwen3 235b 2507'],
       [1447, 'GPT 5 Thinking'],
@@ -53,6 +58,8 @@ export const elos: Record<string, number> = Object.fromEntries(
       [1432, 'DeepSeek v3.1'],
       [1431, 'Kimi K2 0711'],
       [1429, 'GPT 4.1'],
+      [1428, 'MiniMax M2.5 Thinking'],
+      [1428, 'MiniMax M2.7 Thinking'],
       [1424, 'LongCat Flash Chat'],
       [1422, 'Grok 3'],
       [1421, 'DeepSeek v3.1 Terminus'],
@@ -75,11 +82,11 @@ export const elos: Record<string, number> = Object.fromEntries(
       [1400, 'Raptor mini Thinking'], // est
       [1398, 'GPT 4.1 mini'],
       [1396, 'Mistral Medium 3 (2505)'],
-      [1391, 'Gemini 2.5 Flash Lite 2509'],
+      [1391, 'Gemini 2.5 Flash Lite'],
       [1389, 'Qwen3 235b Thinking'],
       [1389, 'GLM 4.5 Air Thinking'],
       [1389 - 10, 'GLM 4.5 Air'], // est
-      [1381, 'Gemini 2.5 Flash Lite 2509 Thinking'],
+      [1381, 'Gemini 2.5 Flash Lite Thinking'],
       [1376, 'GLM 4.7 Flash Thinking'],
       [1376 - 10, 'GLM 4.7 Flash'], // est
       [1374, 'Grok 3 mini Thinking'],
@@ -141,9 +148,12 @@ export const processName = (name: string) =>
     .replace(/\bMini\b/, 'mini')
     .replace(/GPT OSS/i, 'gpt oss')
     .replace(/\bV(?=[0-9])/, 'v')
-    .replace(/(?<= (?:1|3|4|7|8|11|12|14|17|22|27|30|32|70|72|80|90|120|235|397|405|480))B/, 'b')
+    .replace(
+      /(?<= (?:1|3|4|7|8|11|12|14|17|22|26|27|30|31|32|70|72|80|90|120|235|397|405|480))B/,
+      'b',
+    )
     .replace(/(?<= (?:1))T/, 't')
-    .replace(/(?<=A(?:3|17|22|35))B/, 'b')
+    .replace(/(?<=A(?:3|4|17|22|35))B/, 'b')
     .replace(' A22b', '')
     .replace(/3n ([0-9]+)b/i, '3n E$1b')
     .replace(/ preview| \(preview\)/i, '')
@@ -225,6 +235,7 @@ export const crofReasonPatches = [
   'GLM 4.6',
   'GLM 4.7',
   'GLM 5',
+  'GLM 5.1',
   'INTELLECT 3',
   'Qwen3.5 397b A17b',
 ];

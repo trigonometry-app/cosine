@@ -17,7 +17,7 @@
   let thoughts = $state('');
   let tab = $state<'placeholder' | 'output' | 'input'>('placeholder');
   let stack: Stack = $state([]);
-  let model = $state('Kimi K2');
+  let model = $state('Gemini 3 Flash Thinking');
   let aborter: AbortController | undefined = $state();
   let choosingSince: number | undefined = $state();
 

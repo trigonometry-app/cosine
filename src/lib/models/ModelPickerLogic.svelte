@@ -142,13 +142,6 @@
 
       output.push([provider, name, options, context, speed, cost, vision]);
     };
-    // const addCosineAnt = (
-    //   name: string,
-    //   model: string,
-    //   speed: number,
-    //   context: number,
-    //   thinkingBudget?: number,
-    // ) => addEntry("Anthropic via Cosine", name, { model, thinkingBudget }, context, speed, 1, true);
     const addCosineGroq = (
       name: string,
       model: string,
@@ -172,12 +165,6 @@
       context: number,
       thinkingBudget?: number,
     ) => addEntry('Gemini via Cosine', name, { model, thinkingBudget }, context, speed, 0, true);
-    // addCosineAnt("Claude Haiku 3", "claude-3-haiku-20240307", 80, 200000);
-    // addCosineAnt("Claude Haiku 3.5", "claude-3-5-haiku-20241022", 80, 200000);
-    // addCosineAnt("Claude Haiku 4.5", "claude-haiku-4-5-20251001", 80, 200000);
-    // addCosineAnt("Claude Haiku 4.5 Thinking", "claude-haiku-4-5-20251001", 80, 200000, 32000);
-    // addCosineAnt("Claude Sonnet 4.5", "claude-sonnet-4-5-20250929", 80, 200000);
-    // addCosineAnt("Claude Sonnet 4.5 Thinking", "claude-sonnet-4-5-20250929", 80, 200000, 32000);
     addCosineGroq('Llama 3.1 8b', 'llama-3.1-8b-instant', 560, 6000);
     addCosineGroq('Llama 3.3 70b', 'llama-3.3-70b-versatile', 280, 12000);
     addCosineGroq('gpt oss 20b Thinking', 'openai/gpt-oss-20b', 1000, 8000);
@@ -190,42 +177,17 @@
       6000,
       true,
     );
-    addCosineGroq('Kimi K2', 'moonshotai/kimi-k2-instruct-0905', 300, 10000);
     addCosineGroq('Qwen3 32b Thinking', 'qwen/qwen3-32b', 400, 6000);
-    addCosineGroq('Qwen3 32b', 'qwen/qwen3-32b', 400, 6000, false, true);
+    addCosineGroq('Qwen3 32b', 'qwen/qwen3-32b', 400, 6000, undefined, true);
     // consult https://cloud.cerebras.ai/platform/[org]/models
     addCosineCerebras('Llama 3.1 8b', 'llama3.1-8b', 2200, k(8));
-    // addCosineCerebras("Llama 3.3 70b", "llama-3.3-70b", 2100, 64000);
-    addCosineCerebras('gpt oss 120b Thinking', 'gpt-oss-120b', 1600, 64000);
-    // addCosineCerebras("Qwen3 32b Thinking", "qwen-3-32b", 1000, 64000);
-    // addCosineCerebras("Qwen3 32b", "qwen-3-32b", 1000, 64000, true);
-    // addCosineCerebras("GLM 4.7 Thinking", "zai-glm-4.7", 800, k(128));
-    addCosineGemini(
-      'Gemini 2.5 Flash 2509 Thinking',
-      'models/gemini-2.5-flash-preview-09-2025',
-      100,
-      250000,
-    );
-    addCosineGemini(
-      'Gemini 2.5 Flash 2509',
-      'models/gemini-2.5-flash-preview-09-2025',
-      100,
-      250000,
-      0,
-    );
-    addCosineGemini(
-      'Gemini 2.5 Flash Lite 2509',
-      'models/gemini-2.5-flash-lite-preview-09-2025',
-      200,
-      250000,
-    );
-    addCosineGemini(
-      'Gemini 2.5 Flash Lite 2509 Thinking',
-      'models/gemini-2.5-flash-lite-preview-09-2025',
-      200,
-      250000,
-      k(24),
-    );
+    addCosineCerebras('Qwen3 235b 2507', 'qwen-3-235b-a22b-instruct-2507', 1400, 30000);
+    addCosineGemini('Gemini 2.5 Flash Thinking', 'gemini-2.5-flash', 100, 1000000);
+    addCosineGemini('Gemini 2.5 Flash', 'gemini-2.5-flash', 100, 1000000, 0);
+    addCosineGemini('Gemini 2.5 Flash Lite', 'gemini-2.5-flash-lite', 200, 1000000, 0);
+    addCosineGemini('Gemini 3 Flash Thinking', 'gemini-3-flash-preview', 100, 1000000);
+    addCosineGemini('Gemini 3 Flash', 'gemini-3-flash-preview', 100, 1000000, 0);
+    addCosineGemini('Gemini 3.1 Flash Lite', 'gemini-3.1-flash-lite-preview', 200, 1000000, 0);
 
     for (const { name, id: model, reasoning, input_modalities, providers } of cosineORFModels) {
       const context = providers.map((p) => p.context_length).reduce((a, b) => Math.max(a, b), 0);
@@ -293,7 +255,6 @@
       if (
         crofReasonPatches.includes(processName(fixedName)) ||
         alwaysReasoners.includes(processName(fixedName)) ||
-        model.endsWith('-reasoner') ||
         model == 'kimi-k2.5' // kimi-k2.5-instant provides nonthinking
       ) {
         if (crofReasonPatches.includes(processName(fixedName))) {
