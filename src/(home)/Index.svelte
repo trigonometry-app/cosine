@@ -179,4 +179,7 @@
       }
     }
   }
+  a {
+    color: var(--m3c-secondary);
+  }
 </style>
