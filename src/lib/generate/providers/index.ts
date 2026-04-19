@@ -29,23 +29,6 @@ const sendEffort = (body: any, effort?: string | null) => {
   if (effort) body.reasoning_effort = effort;
 };
 
-const GROQ_REASONING = ['qwen/qwen3-32b', 'openai/gpt-oss-120b', 'openai/gpt-oss-20b'];
-const CEREBRAS_REASONING: string[] = [];
-const withEffort = (reasoningModels: string[]) => {
-  const set = new Set(reasoningModels);
-  return ({ options }: { options: any }, { body }: { body: any }) => {
-    const effort = options.reasoningEffort;
-    if (!effort) return;
-    if (!set.has(body.model)) {
-      if (effort !== 'none' && effort !== 'minimal') {
-        console.warn(`${body.model} doesn't support reasoning, ignoring effort ${effort}`);
-      }
-      return;
-    }
-    sendEffort(body, effort);
-  };
-};
-
 const orRestrict = ({ options }: { options: any }, { body }: { body: any }) => {
   sendEffort(body, options.reasoningEffort);
   if (options.providerRestriction) {
@@ -56,11 +39,15 @@ const orRestrict = ({ options }: { options: any }, { body }: { body: any }) => {
 export const providers = {
   'Groq via Cosine': constructChatCompletions(
     'https://api.groq.com/openai/v1',
-    withEffort(GROQ_REASONING),
+    ({ options }, { body }) => {
+      sendEffort(body, options.reasoningEffort);
+    },
   ),
   'Cerebras via Cosine': constructChatCompletions(
     'https://api.cerebras.ai/v1',
-    withEffort(CEREBRAS_REASONING),
+    ({ options }, { body }) => {
+      sendEffort(body, options.reasoningEffort);
+    },
   ),
   'Gemini via Cosine': constructChatCompletions(
     'https://generativelanguage.googleapis.com/v1beta/openai',
