@@ -119,7 +119,7 @@
     style:margin-block="auto"
     style:text-align="center"
   >
-    Cosine is about 76% done.
+    Also try <a href="https://github.com/0k-web/0k#launch-0k">0K</a>.
   </p>
 {/if}
 <div class="input">
