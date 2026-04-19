@@ -1,4 +1,3 @@
-import { constructAnthropic } from './_anthropic';
 import type { ProviderFunction } from './_base';
 import { constructChatCompletions } from './_chatcompletions';
 import { constructResponses } from './_responses';
@@ -9,15 +8,6 @@ export const ghcHeaders = {
   'copilot-vision-request': 'true',
 };
 
-const chineseNoThink = (body: { messages: any[] }) => {
-  let systemMessage = body.messages.find((m) => m.role == 'system');
-  if (!systemMessage) {
-    systemMessage = { role: 'system', content: '' };
-    body.messages.unshift(systemMessage);
-  }
-  systemMessage.content += `\n/no_think`;
-  systemMessage.content = systemMessage.content.trimStart();
-};
 const ghcChatCompletions = constructChatCompletions(
   'https://api.githubcopilot.com',
   ({ options }, { headers }) => {
@@ -34,55 +24,74 @@ const ghcResponses = constructResponses(
   },
   true,
 );
+
+const sendEffort = (body: any, effort?: string | null) => {
+  if (effort) body.reasoning_effort = effort;
+};
+
+const GROQ_REASONING = ['qwen/qwen3-32b', 'openai/gpt-oss-120b', 'openai/gpt-oss-20b'];
+const CEREBRAS_REASONING: string[] = [];
+const withEffort = (reasoningModels: string[]) => {
+  const set = new Set(reasoningModels);
+  return ({ options }: { options: any }, { body }: { body: any }) => {
+    const effort = options.reasoningEffort;
+    if (!effort) return;
+    if (!set.has(body.model)) {
+      if (effort !== 'none' && effort !== 'minimal') {
+        console.warn(`${body.model} doesn't support reasoning, ignoring effort ${effort}`);
+      }
+      return;
+    }
+    sendEffort(body, effort);
+  };
+};
+
+const orRestrict = ({ options }: { options: any }, { body }: { body: any }) => {
+  sendEffort(body, options.reasoningEffort);
+  if (options.providerRestriction) {
+    body.provider = { order: [options.providerRestriction], allow_fallbacks: false };
+  }
+};
+
 export const providers = {
-  'Anthropic via Cosine': constructAnthropic(),
   'Groq via Cosine': constructChatCompletions(
     'https://api.groq.com/openai/v1',
-    ({ options }, { body }) => {
-      if (options.disableThinking) {
-        chineseNoThink(body as any);
-      }
-    },
+    withEffort(GROQ_REASONING),
   ),
   'Cerebras via Cosine': constructChatCompletions(
     'https://api.cerebras.ai/v1',
-    ({ options }, { body }) => {
-      if (options.disableThinking) {
-        chineseNoThink(body as any);
-      }
-    },
+    withEffort(CEREBRAS_REASONING),
   ),
   'Gemini via Cosine': constructChatCompletions(
     'https://generativelanguage.googleapis.com/v1beta/openai',
     ({ options }, { body }) => {
-      if (body.model.endsWith('lite')) {
-        body.max_tokens = 65536;
+      const effort = options.reasoningEffort;
+      if (!effort) return;
+      const model = body.model as string;
+      const is25 = model.includes('2.5');
+      const config: Record<string, any> = { include_thoughts: true };
+      if (is25) {
+        const budgetMap: Record<string, number> = {
+          minimal: 0,
+          low: model.includes('lite') ? 512 : 128,
+          high: model.includes('pro') ? 32768 : 24576,
+        };
+        config.thinking_budget = budgetMap[effort] ?? -1; // medium
+      } else {
+        config.thinking_level = effort;
       }
-      body.extra_body = {
-        google: {
-          thinking_config: {
-            include_thoughts: true,
-            thinking_budget: options.thinkingBudget,
-          },
-        },
-      };
+      body.extra_body = { google: { thinking_config: config } };
     },
     true,
   ),
   'OpenRouter Free via Cosine': constructChatCompletions(
     'https://openrouter.ai/api/v1',
-    ({ options }, { body }) => {
-      if (options.reasoning) {
-        body.reasoning = options.reasoning;
-      }
-    },
+    orRestrict,
   ),
   'Hack Club via Cosine': constructChatCompletions(
     'https://ai.hackclub.com/proxy/v1',
     ({ options }, { body }) => {
-      if (options.reasoning) {
-        body.reasoning = options.reasoning;
-      }
+      orRestrict({ options }, { body });
 
       const lastUserMsg = (body.messages as any[]).filter((m) => m.role == 'user').at(-1);
       if (lastUserMsg) {
@@ -114,9 +123,7 @@ export const providers = {
   'CrofAI via Cosine': constructChatCompletions(
     'https://ai.nahcrof.com/v2',
     ({ options }, { body }) => {
-      if (options.disableThinking) {
-        chineseNoThink(body as any);
-      }
+      sendEffort(body, options.reasoningEffort);
     },
   ),
   'GitHub Copilot': ((messages, options, auth, fetcher) => {

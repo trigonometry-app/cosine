@@ -31,7 +31,7 @@
     selectedModelGroupName,
   })}
     <div class="controls" style:opacity={choosingSince ? 0 : undefined}>
-      {#if availableReasoningEfforts}
+      {#if availableReasoningEfforts && availableReasoningEfforts.length > 1}
         <div class="effort-chooser">
           {#each availableReasoningEfforts as effort}
             <button

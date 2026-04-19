@@ -1,39 +1,37 @@
 <script lang="ts">
   import { getStorage } from 'monoidentity';
-  import type { Options, Stack, StackItem } from '../types';
+  import type { Options, OptionsBase, Stack, StackItem } from '../types';
   import type { Provider } from '../generate/providers';
-  import getAccessToken from '../generate/copilot/get-access-token';
-  import {
-    elos,
-    ghcTPS,
-    ghmTPS,
-    k,
-    orfTPS,
-    orhcTPS,
-    processName,
-    alwaysReasoners,
-    crofReasonPatches,
-    crofTPS,
-    identifiablePrefixes,
-    DEFAULT_ELO,
-    ORF_DEFAULT_TPS,
-    ORHC_DEFAULT_TPS,
-    CROF_DEFAULT_TPS,
-    GHM_DEFAULT_TPS,
-    GHC_DEFAULT_TPS,
-    allReasoningEfforts,
-    type ReasoningEffort,
-    crofDisabledModels,
-  } from './const';
-  import listORF, { type ORFModel } from './list-orf.remote';
-  import listGHM, { type GHMModel } from './list-ghm.remote';
-  import listGHC, { type GHCModel } from './list-ghc.remote';
-  import listCrof, { type CrofModel } from './list-crof.remote';
-  import listORHC, { type ORHCModel } from './list-orhc.remote';
-  import { getAbortSignal, type Snippet } from 'svelte';
+  import type { BrokieModels, BrokieProvider } from './types';
+  import { type Snippet } from 'svelte';
 
   type Specs = { speed: number; cost: number; groupName: string; effort?: string };
-  type Conn = StackItem & { name: string; specs: Specs };
+  type Conn = StackItem & {
+    name: string;
+    context: number;
+    vision: boolean;
+    stackScore: number;
+    specs: Specs;
+  };
+
+  type FilteredIndex = {
+    connByName: Record<string, Conn>;
+    modelGroups: Record<string, Conn[]>;
+    modelStacks: Record<string, Conn[]>;
+    reasoningEffortsByGroup: Record<string, string[]>;
+  };
+
+  type EloPair = { direct?: number; thinking?: number };
+
+  const REASONING_EFFORT_ORDER = ['minimal', 'low', 'medium', 'high', 'xhigh'];
+  const compareReasoningEfforts = (a: string, b: string) => {
+    const ia = REASONING_EFFORT_ORDER.indexOf(a);
+    const ib = REASONING_EFFORT_ORDER.indexOf(b);
+    if (ia != -1 && ib != -1) return ia - ib;
+    if (ia != -1) return -1;
+    if (ib != -1) return 1;
+    return a.localeCompare(b);
+  };
 
   type ChildrenProps = {
     model: string;
@@ -79,22 +77,26 @@
   };
 
   const selectModel = (name: string) => {
-    const prefix = name + '::';
-    model = modelStacks[name]
-      ? name
-      : (modelNames.find((n) => n.startsWith(prefix) && n.includes('::medium')) ??
-        modelNames.find((n) => n.startsWith(prefix)) ??
-        name);
+    if (modelStacks[name]) {
+      model = name;
+      return;
+    }
+
+    const variants = modelGroups[name];
+    if (variants?.length) {
+      model =
+        variants.find((variant) => variant.specs.effort == 'medium')?.name ?? variants[0].name;
+      return;
+    }
+
+    model = name;
   };
 
   const setReasoningEffort = (effort: string) => {
-    // Find the current group name
-    const currentConn = conns.find((c) => c.name == model);
+    const currentConn = connByName[model];
     if (!currentConn) return;
     const groupName = currentConn.specs.groupName;
-
-    // Find the candidate with the target effort in the same group
-    const candidate = conns.find((c) => c.specs.groupName == groupName && c.specs.effort == effort);
+    const candidate = modelGroups[groupName]?.find((c) => c.specs.effort == effort);
     if (candidate) {
       selectModel(candidate.name);
     }
@@ -115,310 +117,305 @@
     stack = computedStack;
   });
 
-  let connsRaw = $derived.by(() => {
-    let output: Parameters<typeof addEntry>[] = [];
-    const addEntry = (
-      provider: Provider,
-      name: string,
-      options: Options,
-      context: number,
-      speed: number,
-      cost: number,
-      vision: boolean,
-    ) => {
-      if (
-        [
-          'Claude Sonnet 3.5',
-          'Claude Sonnet 4',
-          'o1 Thinking',
-          'o1 preview Thinking',
-          'o1 mini Thinking',
-          'o3 Thinking',
-          'o3 mini Thinking',
-          'o4 mini Thinking',
-        ].includes(name)
-      )
-        return;
+  // Set to a provider key to only enable that provider for testing
+  const DEBUG_PROVIDER: Provider | null = null;
 
-      output.push([provider, name, options, context, speed, cost, vision]);
-    };
-    const addCosineGroq = (
-      name: string,
-      model: string,
-      speed: number,
-      context: number,
-      vision = false,
-      disableThinking = false,
-    ) => addEntry('Groq via Cosine', name, { model, disableThinking }, context, speed, 0, vision);
-    const addCosineCerebras = (
-      name: string,
-      model: string,
-      speed: number,
-      context: number,
-      disableThinking = false,
-    ) =>
-      addEntry('Cerebras via Cosine', name, { model, disableThinking }, context, speed, 0, false);
-    const addCosineGemini = (
-      name: string,
-      model: string,
-      speed: number,
-      context: number,
-      thinkingBudget?: number,
-    ) => addEntry('Gemini via Cosine', name, { model, thinkingBudget }, context, speed, 0, true);
-    addCosineGroq('Llama 3.1 8b', 'llama-3.1-8b-instant', 560, 6000);
-    addCosineGroq('Llama 3.3 70b', 'llama-3.3-70b-versatile', 280, 12000);
-    addCosineGroq('gpt oss 20b Thinking', 'openai/gpt-oss-20b', 1000, 8000);
-    addCosineGroq('gpt oss 120b Thinking', 'openai/gpt-oss-120b', 500, 8000);
-    addCosineGroq('Llama 4 Scout', 'meta-llama/llama-4-scout-17b-16e-instruct', 750, 30000, true);
-    addCosineGroq(
-      'Llama 4 Maverick',
-      'meta-llama/llama-4-maverick-17b-128e-instruct',
-      600,
-      6000,
-      true,
-    );
-    addCosineGroq('Qwen3 32b Thinking', 'qwen/qwen3-32b', 400, 6000);
-    addCosineGroq('Qwen3 32b', 'qwen/qwen3-32b', 400, 6000, undefined, true);
-    // consult https://cloud.cerebras.ai/platform/[org]/models
-    addCosineCerebras('Llama 3.1 8b', 'llama3.1-8b', 2200, k(8));
-    addCosineCerebras('Qwen3 235b 2507', 'qwen-3-235b-a22b-instruct-2507', 1400, 30000);
-    addCosineGemini('Gemini 2.5 Flash Thinking', 'gemini-2.5-flash', 100, 1000000);
-    addCosineGemini('Gemini 2.5 Flash', 'gemini-2.5-flash', 100, 1000000, 0);
-    addCosineGemini('Gemini 2.5 Flash Lite', 'gemini-2.5-flash-lite', 200, 1000000, 0);
-    addCosineGemini('Gemini 3 Flash Thinking', 'gemini-3-flash-preview', 100, 1000000);
-    addCosineGemini('Gemini 3 Flash', 'gemini-3-flash-preview', 100, 1000000, 0);
-    addCosineGemini('Gemini 3.1 Flash Lite', 'gemini-3.1-flash-lite-preview', 200, 1000000, 0);
+  const BROKIE_URL =
+    'https://raw.githubusercontent.com/trigonometry-app/brokierouter/refs/heads/main/models.json';
+  const CACHE_KEY = 'models/brokierouter';
+  const DEFAULT_ELO = 1200;
 
-    for (const { name, id: model, reasoning, input_modalities, providers } of cosineORFModels) {
-      const context = providers.map((p) => p.context_length).reduce((a, b) => Math.max(a, b), 0);
-      const add = (name: string, options: Options) =>
-        addEntry(
-          'OpenRouter Free via Cosine',
-          name,
-          options,
-          context,
-          orfTPS[name] || ORF_DEFAULT_TPS,
-          0,
-          input_modalities.includes('image'),
-        );
-      if (reasoning) {
-        let withThinking = processName(name) + ' Thinking';
-        withThinking = withThinking.replace('Thinking Thinking', 'Thinking');
-        add(withThinking, { model, reasoning: { enabled: true } });
-        // TODO: disable reasoning logic
-        // add(processName(name), { model, reasoning: { enabled: false } });
-      } else {
-        add(processName(name), { model });
-      }
-    }
-    for (const {
-      name,
-      id: model,
-      context_length,
-      architecture,
-      supported_parameters,
-    } of cosineORHCModels) {
-      const add = (name: string, options: Options) =>
-        addEntry(
-          'Hack Club via Cosine',
-          name,
-          options,
-          context_length,
-          orhcTPS[name] || ORHC_DEFAULT_TPS,
-          0,
-          architecture.input_modalities.includes('image'),
-        );
-      const supportsReasoning = supported_parameters?.includes('reasoning');
+  const resolveProvider = (
+    brokieProvider: BrokieProvider,
+  ): { provider: Provider; options: OptionsBase; cost: number } | null => {
+    const { id, model_id, cost_multiplier, extra } = brokieProvider;
+    const useResponses = extra?.supported_endpoints?.includes('/responses');
 
-      if (supportsReasoning) {
-        let withThinking = processName(name) + ' Thinking';
-        withThinking = withThinking.replace('Thinking Thinking', 'Thinking');
-        add(withThinking, { model, reasoning: { enabled: true } });
-      } else {
-        add(processName(name), { model });
-      }
-    }
-    for (const { name, id: model, context_length } of cosineCrofModels) {
-      if (crofDisabledModels.includes(model)) continue;
-
-      let fixedName = name;
-
-      const add = (name: string, options: Options) => {
-        let speed = crofTPS[model];
-        if (!speed) {
-          console.warn('No speed for', model);
-          speed = CROF_DEFAULT_TPS;
-        }
-
-        addEntry('CrofAI via Cosine', name, options, context_length, speed, 0, false);
+    // OpenRouter Free
+    if (id.startsWith('openrouter-free/')) {
+      const restriction = id.slice('openrouter-free/'.length);
+      return {
+        provider: 'OpenRouter Free via Cosine',
+        options: { model: model_id, providerRestriction: restriction },
+        cost: 0,
       };
-      if (
-        crofReasonPatches.includes(processName(fixedName)) ||
-        alwaysReasoners.includes(processName(fixedName)) ||
-        model == 'kimi-k2.5' // kimi-k2.5-instant provides nonthinking
-      ) {
-        if (crofReasonPatches.includes(processName(fixedName))) {
-          add(processName(fixedName), { model, disableThinking: true });
-        }
-        fixedName += ' Thinking';
-      }
-      add(processName(fixedName), { model });
     }
-    for (const {
-      name,
-      id: model,
-      limits,
-      capabilities,
-      supported_input_modalities,
-    } of ghmModels.filter((m) => m.supported_output_modalities.includes('text'))) {
-      let processedName = processName(name);
-      if (
-        (capabilities.includes('reasoning') && !model.endsWith('chat')) ||
-        model == 'xai/grok-3-mini'
-      ) {
-        processedName = processedName.replace(' reasoning', '');
-        processedName += ' Thinking';
-      }
-      let context = limits.max_input_tokens;
-      if (context > 8000) {
-        context = 8000;
-      }
-      if (
-        [
-          'DeepSeek R1 Thinking',
-          'DeepSeek R1 0528 Thinking',
-          'MAI DS R1 Thinking',
-          'Grok 3',
-          'Grok 3 Mini Thinking',
-          'GPT 5 Thinking',
-          'GPT 5 mini Thinking',
-          'GPT 5 nano Thinking',
-          'GPT 5 chat',
-        ].includes(processedName) &&
-        context > 4000
-      ) {
-        context = 4000;
-      }
-      let speed = ghmTPS[processedName];
-      if (!speed) {
-        speed = GHM_DEFAULT_TPS;
-      }
-      addEntry(
-        'GitHub Models',
-        processedName,
-        { model },
-        context,
-        speed,
-        0,
-        supported_input_modalities.includes('image'),
-      );
-    }
-    for (const { name, id: model, billing, capabilities, supported_endpoints } of ghcModels.filter(
-      (m) => m.model_picker_enabled && m.capabilities.type == 'chat',
-    )) {
-      const processedName = processName(name);
-      let context = capabilities.limits?.max_prompt_tokens;
-      if (!context) {
-        console.warn('No context for', name);
-        context = 8000;
-      }
-      const cost = billing.multiplier;
-      const useResponses = supported_endpoints?.includes('/responses');
 
-      const add = (name: string, reasoningEffort?: ReasoningEffort) =>
-        addEntry(
-          'GitHub Copilot',
-          name,
-          { model, useResponses, reasoningEffort },
-          context,
-          ghcTPS[processedName] || GHC_DEFAULT_TPS,
-          cost,
-          capabilities.supports.vision,
+    // Hack Club (OpenRouter proxy)
+    if (id.startsWith('hack-club/')) {
+      const restriction = id.slice('hack-club/'.length);
+      return {
+        provider: 'Hack Club via Cosine',
+        options: { model: model_id, providerRestriction: restriction },
+        cost: 0,
+      };
+    }
+
+    // Groq Free
+    if (id === 'groq-free') {
+      return {
+        provider: 'Groq via Cosine',
+        options: { model: model_id },
+        cost: 0,
+      };
+    }
+
+    // Cerebras Free
+    if (id === 'cerebras-free') {
+      return {
+        provider: 'Cerebras via Cosine',
+        options: { model: model_id },
+        cost: 0,
+      };
+    }
+
+    // Google Free
+    if (id === 'google-free') {
+      return {
+        provider: 'Gemini via Cosine',
+        options: { model: model_id },
+        cost: 0,
+      };
+    }
+
+    // GitHub Copilot
+    if (id === 'github-copilot') {
+      if (!extra?.model_picker_enabled) return null;
+      return {
+        provider: 'GitHub Copilot',
+        options: { model: model_id, useResponses },
+        cost: cost_multiplier ?? 0,
+      };
+    }
+
+    // GitHub Models
+    if (id === 'github-models') {
+      return {
+        provider: 'GitHub Models',
+        options: { model: model_id },
+        cost: 0,
+      };
+    }
+
+    // CrofAI
+    if (id === 'crofai' || id.startsWith('crofai/')) {
+      return {
+        provider: 'CrofAI via Cosine',
+        options: { model: model_id },
+        cost: 0,
+      };
+    }
+
+    return null;
+  };
+
+  let brokieModels: BrokieModels = $state(cache[CACHE_KEY] || []);
+
+  const updateModels = async () => {
+    try {
+      const r = await fetch(BROKIE_URL);
+      if (!r.ok) throw new Error(`${r.status}`);
+      const data: BrokieModels = await r.json();
+      brokieModels = data;
+      cache[CACHE_KEY] = data;
+    } catch (e) {
+      console.error('Failed to fetch models:', e);
+    }
+  };
+  updateModels();
+
+  let allConns = $derived.by(() => {
+    const output: Conn[] = [];
+    for (const model of brokieModels) {
+      const { name: modelName, providers: modelProviders } = model;
+
+      for (const bp of modelProviders) {
+        const resolved = resolveProvider(bp);
+        if (!resolved) continue;
+        if (DEBUG_PROVIDER && resolved.provider !== DEBUG_PROVIDER) continue;
+
+        const { provider, options, cost } = resolved;
+        const context = bp.context_length;
+        const speed = bp.tps ?? 40;
+        const vision = bp.input_modalities.includes('image');
+
+        // Gate GitHub providers on auth
+        if (provider === 'GitHub Copilot' && !config.providers?.ghc) continue;
+
+        const reasoningEfforts = bp.reasoning_efforts;
+
+        if (!bp.output_modalities.includes('text')) continue;
+
+        const nonThinkingEfforts = reasoningEfforts.filter(
+          (e) => e == null || e === 'none' || e === 'minimal',
         );
-      const efforts = allReasoningEfforts[processedName];
-      if (efforts) {
-        for (const effort of efforts) {
-          if (effort == 'none') {
-            add(processedName, effort);
-          } else {
-            add(`${processedName} Thinking::${effort}`, effort);
-          }
+        const thinkingEfforts = reasoningEfforts.filter(
+          (e) => e != null && e !== 'none' && e !== 'minimal',
+        );
+        const createConn = (name: string, optionsWithEffort: Options, effort?: string): Conn => {
+          const groupName = name.split('::')[0];
+          const adjustedSpeed = speed * (groupName.includes(' Thinking') ? 0.7 : 1);
+          return {
+            provider,
+            name,
+            options: optionsWithEffort,
+            context,
+            vision,
+            stackScore: Math.log10(adjustedSpeed) - cost,
+            specs: {
+              speed: adjustedSpeed,
+              cost,
+              groupName,
+              effort,
+            },
+          };
+        };
+
+        if (nonThinkingEfforts.length > 0) {
+          const effort = nonThinkingEfforts[0];
+          output.push(createConn(modelName, { ...options, reasoningEffort: effort }, effort));
+        }
+
+        for (const effort of thinkingEfforts) {
+          const variantName =
+            thinkingEfforts.length === 1
+              ? `${modelName} Thinking`
+              : `${modelName} Thinking::${effort}`;
+          output.push(createConn(variantName, { ...options, reasoningEffort: effort }, effort));
+        }
+      }
+    }
+
+    return output;
+  });
+
+  let baseIndex = $derived.by(() => {
+    const modelNames: string[] = [];
+    const modelStacks: Record<string, Conn[]> = {};
+
+    for (const conn of allConns) {
+      const stack = modelStacks[conn.name];
+      if (stack) {
+        stack.push(conn);
+      } else {
+        modelNames.push(conn.name);
+        modelStacks[conn.name] = [conn];
+      }
+    }
+
+    for (const name of modelNames) {
+      modelStacks[name].sort((a, b) => b.stackScore - a.stackScore);
+    }
+
+    return { modelNames, modelStacks };
+  });
+
+  let allGroupNames = $derived.by(() => {
+    const groupNames = new Set<string>();
+    for (const conn of allConns) {
+      groupNames.add(conn.specs.groupName);
+    }
+    return [...groupNames];
+  });
+
+  let filteredIndex = $derived.by((): FilteredIndex => {
+    const connByName: Record<string, Conn> = {};
+    const modelGroups: Record<string, Conn[]> = {};
+    const modelStacks: Record<string, Conn[]> = {};
+    const reasoningEffortsByGroup: Record<string, string[]> = {};
+
+    for (const name of baseIndex.modelNames) {
+      const filteredStack = baseIndex.modelStacks[name].filter((conn) => {
+        if (conn.context < minContext) return false;
+        if (useImageInput == true && !conn.vision) return false;
+        if (useImageInput == false && conn.vision && conn.name.startsWith('Llama 3.2'))
+          return false;
+        return true;
+      });
+      if (!filteredStack.length) continue;
+
+      modelStacks[name] = filteredStack;
+      connByName[name] = filteredStack[0];
+
+      const representative = filteredStack[0];
+      (modelGroups[representative.specs.groupName] ||= []).push(representative);
+
+      if (representative.specs.effort) {
+        (reasoningEffortsByGroup[representative.specs.groupName] ||= []).push(
+          representative.specs.effort,
+        );
+      }
+    }
+
+    for (const groupName of Object.keys(reasoningEffortsByGroup)) {
+      reasoningEffortsByGroup[groupName] = Array.from(
+        new Set(reasoningEffortsByGroup[groupName]),
+      ).sort(compareReasoningEfforts);
+    }
+
+    return { connByName, modelGroups, modelStacks, reasoningEffortsByGroup };
+  });
+
+  let eloLookup = $derived.by(() => {
+    const lookup: Record<string, EloPair> = {};
+    for (const { name, elo_direct, elo_thinking } of brokieModels) {
+      lookup[name] = { direct: elo_direct, thinking: elo_thinking };
+    }
+    return lookup;
+  });
+
+  let eloResolution = $derived.by(() => {
+    const resolved: Record<string, number> = {};
+    const warnings: string[] = [];
+    for (const groupName of allGroupNames) {
+      const isThinking = groupName.endsWith(' Thinking');
+      const baseGroupName = isThinking ? groupName.slice(0, -' Thinking'.length) : groupName;
+      const { direct, thinking } = eloLookup[baseGroupName] ?? {};
+
+      if (isThinking) {
+        resolved[groupName] = thinking ?? direct ?? DEFAULT_ELO;
+        if (thinking == null) {
+          warnings.push(
+            direct != null
+              ? `Using direct elo for ${groupName}`
+              : `Using default elo for ${groupName}`,
+          );
         }
       } else {
-        if (alwaysReasoners.includes(processedName)) {
-          add(`${processedName} Thinking`);
-        } else {
-          add(processedName);
+        resolved[groupName] = direct ?? (thinking != null ? thinking - 20 : DEFAULT_ELO);
+        if (direct == null) {
+          warnings.push(
+            thinking != null
+              ? `Using thinking elo - 20 for ${groupName}`
+              : `Using default elo for ${groupName}`,
+          );
         }
       }
     }
-
-    return output;
+    return { resolved, warnings };
   });
+  let resolvedEloByGroup = $derived(eloResolution.resolved);
+  let eloWarnings = $derived(eloResolution.warnings);
+
   $effect(() => {
-    const models = new Set<string>();
-    for (const [_, name] of connsRaw) {
-      models.add(name);
-    }
-    for (const name of models) {
-      const [groupName] = name.split('::');
-
-      if (groupName != processName(groupName))
-        console.warn('Unprocessed name:', groupName, '(from', name, ')');
-
-      const elo = elos[groupName];
-      if (!elo) {
-        console.debug('No elo for', groupName);
-      }
+    for (const warning of eloWarnings) {
+      console.warn(warning);
     }
   });
-  let conns = $derived.by(() => {
-    const output: Conn[] = [];
-    for (const [provider, name, options, context, speed, cost, vision] of connsRaw) {
-      if (context < minContext) continue;
-      if (useImageInput == true && !vision) continue;
-      if (useImageInput == false && vision && name.startsWith('Llama 3.2')) continue;
 
-      const [groupName, effort] = name.split('::');
-
-      output.push({
-        provider,
-        name,
-        options,
-        specs: {
-          speed: speed * (name.includes(' Thinking') ? 0.7 : 1),
-          cost,
-          groupName,
-          effort,
-        },
-      });
-    }
-    return output;
-  });
-  let modelNames = $derived([...new Set(conns.map((c) => c.name))]);
-  let modelGroups = $derived.by(() => {
-    const groups: Record<string, Conn[]> = {};
-    for (const conn of conns) {
-      (groups[conn.specs.groupName] ||= []).push(conn);
-    }
-    return groups;
-  });
-  let modelStacks = $derived(
-    Object.fromEntries(
-      modelNames.map((name) => {
-        const stack = conns.filter((c) => c.name == name);
-        // Fused score: higher speed and lower cost = better
-        // Speed is normalized logarithmically (base 10), cost applies a penalty
-        const scoreProvider = (c: Conn) => {
-          const speedScore = Math.log10(c.specs.speed);
-          const costPenalty = c.specs.cost; // Each cost unit penalizes by 1 log10-speed point (10× slower)
-          return speedScore - costPenalty;
-        };
-        stack.sort((a, b) => scoreProvider(b) - scoreProvider(a));
-        return [name, stack];
-      }),
+  let maxKnownElo = $derived(
+    Math.max(
+      ...Object.values(eloLookup)
+        .flatMap((e) => [e.direct, e.thinking])
+        .filter((v): v is number => v != null),
+      DEFAULT_ELO,
     ),
   );
+  let connByName = $derived(filteredIndex.connByName);
+  let modelGroups = $derived(filteredIndex.modelGroups);
+  let modelStacks = $derived(filteredIndex.modelStacks);
+  let reasoningEffortsByGroup = $derived(filteredIndex.reasoningEffortsByGroup);
+
   let modelsDisplayed = $derived.by(() => {
     const groupNames = Object.keys(modelGroups);
 
@@ -433,21 +430,18 @@
         return true;
       })
       .map((groupName) => {
-        // Find the best variant to represent the group
-        // If the current model is in this group, use it. Otherwise use the first one.
         const variants = modelGroups[groupName] || [];
         const activeVariant = variants.find((v) => v.name == model) || variants[0];
         const stack = modelStacks[activeVariant.name];
 
         const speed = Math.log(stack[0].specs.speed);
-        const elo = elos[groupName] || DEFAULT_ELO;
+        const elo = resolvedEloByGroup[groupName] ?? DEFAULT_ELO;
         const cost = stack[0].specs.cost;
         return [groupName, { speed, elo, cost }] as const;
       });
 
     const minElo = 1200;
-    const maxElo = Math.max(...Object.values(elos));
-    const eloRange = maxElo - minElo;
+    const eloRange = maxKnownElo - minElo;
     const minSpeed = Math.log(20);
     const maxSpeed = Math.log(2500);
     const speedRange = maxSpeed - minSpeed;
@@ -471,77 +465,12 @@
     }));
   });
 
-  let conn = $derived(conns.find((c) => c.name == model));
+  let conn = $derived(connByName[model]);
   let selectedModelGroupName = $derived(conn?.specs.groupName || model);
   let currentReasoningEffort = $derived(conn?.specs.effort);
-
-  let availableReasoningEfforts = $derived.by(() => {
-    if (!conn) return undefined;
-    const groupName = conn.specs.groupName;
-    const variants = modelGroups[groupName];
-    if (!variants) return undefined;
-
-    const order = ['minimal', 'low', 'medium', 'high', 'xhigh'];
-    return Array.from(new Set(variants.map((v) => v.specs.effort).filter((e) => e))).sort(
-      (a, b) => {
-        const ia = order.indexOf(a!);
-        const ib = order.indexOf(b!);
-        if (ia != -1 && ib != -1) return ia - ib;
-        if (ia != -1) return -1;
-        if (ib != -1) return 1;
-        return a!.localeCompare(b!);
-      },
-    ) as string[];
-  });
-
-  const COSINE_ORF_CACHE_KEY = 'models/OpenRouter Free via Cosine';
-  const COSINE_ORHC_CACHE_KEY = 'models/Hack Club via Cosine';
-  const COSINE_CROF_CACHE_KEY = 'models/CrofAI via Cosine';
-  const GHM_CACHE_KEY = 'models/GitHub Models';
-  const GHC_CACHE_KEY = 'models/GitHub Copilot';
-  let cosineORFModels: ORFModel[] = $state(cache[COSINE_ORF_CACHE_KEY] || []);
-  let cosineORHCModels: ORHCModel[] = $state(cache[COSINE_ORHC_CACHE_KEY] || []);
-  let cosineCrofModels: CrofModel[] = $state(cache[COSINE_CROF_CACHE_KEY] || []);
-  let ghmModels: GHMModel[] = $state(cache[GHM_CACHE_KEY] || []);
-  let ghcModels: GHCModel[] = $state(cache[GHC_CACHE_KEY] || []);
-  const updateCosineORF = async () => {
-    const models = await listORF();
-    cosineORFModels = models;
-    cache[COSINE_ORF_CACHE_KEY] = models;
-  };
-  const updateCosineORHC = async () => {
-    const models = await listORHC();
-    cosineORHCModels = models;
-    cache[COSINE_ORHC_CACHE_KEY] = models;
-  };
-  const updateCosineCrof = async () => {
-    const models = await listCrof();
-    cosineCrofModels = models;
-    cache[COSINE_CROF_CACHE_KEY] = models;
-  };
-  const updateGHM = async ({ token }: { token: string }, signal: AbortSignal) => {
-    const models = await listGHM(
-      {
-        key: token,
-      },
-      { signal },
-    );
-    ghmModels = models;
-    cache[GHM_CACHE_KEY] = models;
-  };
-  const updateGHC = async ({ token }: { token: string }, signal: AbortSignal) => {
-    const models = await listGHC({ key: await getAccessToken(token) }, { signal });
-    ghcModels = models;
-    cache[GHC_CACHE_KEY] = models;
-  };
-  updateCosineORF();
-  updateCosineORHC();
-  updateCosineCrof();
-  $effect(() => {
-    const signal = getAbortSignal();
-    if (config.providers?.ghm) updateGHM(config.providers.ghm, signal);
-    if (config.providers?.ghc) updateGHC(config.providers.ghc, signal);
-  });
+  let availableReasoningEfforts = $derived(
+    conn ? reasoningEffortsByGroup[conn.specs.groupName] : undefined,
+  );
 </script>
 
 {@render children({

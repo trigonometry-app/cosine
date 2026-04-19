@@ -1,14 +1,12 @@
 import type { Provider } from './generate/providers';
 
-type ReasoningConfig = { enabled: boolean };
-
-export type Options = {
+export type OptionsBase = {
   model: string;
-  reasoningEffort?: string;
-  disableThinking?: boolean;
-  thinkingBudget?: number;
-  reasoning?: ReasoningConfig;
   useResponses?: boolean;
+  providerRestriction?: string;
+};
+export type Options = OptionsBase & {
+  reasoningEffort: string | null;
 };
 export type OptionsInference = Options & {
   tools: any[];

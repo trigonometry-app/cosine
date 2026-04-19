@@ -2,7 +2,6 @@
   import { getStorage } from 'monoidentity';
   import { Button } from 'm3-svelte';
   import GHC from './providers/GHC.svelte';
-  import GHM from './providers/GHM.svelte';
   import GHCLimits from './limits/GHCLimits.svelte';
   import { setView } from './IndexController.svelte';
 
@@ -16,7 +15,9 @@
       <Button disabled>Included</Button>
     </div>
 
-    <p>Free access via Groq, Cerebras, Gemini, Anthropic, CrofAI, and OpenRouter.</p>
+    <p>
+      Free access via OpenRouter + Hack Club, GitHub Models, CrofAI, Groq, Cerebras, and Gemini.
+    </p>
     <p>
       (To protect Cosine, observability infra is used for these models. You can verify this by
       looking at <a href="https://github.com/KTibow/cosine">its source</a>.)
@@ -38,19 +39,6 @@
     {#if config.providers.ghc}
       <GHCLimits {...config.providers.ghc} />
     {/if}
-  </div>
-
-  <div class="provider">
-    <div class="header">
-      <h3>GitHub Models</h3>
-      {#if config.providers.ghm}
-        <Button disabled>Connected</Button>
-      {:else}
-        <Button onclick={() => setView(GHM)}>Connect</Button>
-      {/if}
-    </div>
-
-    <p>A variety of OpenAI and non-OpenAI models.</p>
   </div>
 </div>
 

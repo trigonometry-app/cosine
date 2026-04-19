@@ -33,11 +33,6 @@ export default async function (
         };
 
         let auth = 'SERVER_KEY';
-        if (provider == 'GitHub Models') {
-          const token = configuredProviders.ghm?.token;
-          if (!token) throw new Error('No GitHub token provided');
-          auth = token;
-        }
         if (provider == 'GitHub Copilot') {
           const token = configuredProviders.ghc?.token;
           if (!token) throw new Error('No GitHub token provided');

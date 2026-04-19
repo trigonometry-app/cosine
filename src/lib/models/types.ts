@@ -1,0 +1,31 @@
+export type Root = Array<{
+  id: string;
+  name: string;
+  providers: Array<{
+    id: string;
+    model_id: string;
+    context_length: number;
+    pricing?: {
+      prompt: string;
+      completion: string;
+    };
+    input_modalities: string[];
+    output_modalities: string[];
+    tps?: number;
+    reasoning_efforts: string[];
+    extra?: {
+      model_picker_enabled?: boolean;
+      supported_endpoints?: string[];
+      quantization?: string;
+    };
+    cost_multiplier?: number;
+  }>;
+  elo_direct?: number;
+  elo_thinking?: number;
+}>;
+
+export type BrokieModels = Root;
+export type BrokieModel = Root[number];
+export type BrokieProvider = BrokieModel['providers'][number];
+export type BrokiePricing = NonNullable<BrokieProvider['pricing']>;
+export type BrokieExtra = NonNullable<BrokieProvider['extra']>;
