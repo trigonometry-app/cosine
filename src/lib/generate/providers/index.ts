@@ -109,12 +109,9 @@ export const providers = {
       }
     },
   ),
-  'CrofAI via Cosine': constructChatCompletions(
-    'https://ai.nahcrof.com/v2',
-    ({ options }, { body }) => {
-      sendEffort(body, options.reasoningEffort);
-    },
-  ),
+  'CrofAI via Cosine': constructChatCompletions('https://crof.ai/v2', ({ options }, { body }) => {
+    sendEffort(body, options.reasoningEffort);
+  }),
   'GitHub Copilot': ((messages, options, auth, fetcher) => {
     if (options.useResponses) return ghcResponses(messages, options, auth, fetcher);
     return ghcChatCompletions(messages, options, auth, fetcher);
