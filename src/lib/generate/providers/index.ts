@@ -10,17 +10,19 @@ export const ghcHeaders = {
 
 const ghcChatCompletions = constructChatCompletions(
   'https://api.githubcopilot.com',
-  ({ options }, { headers }) => {
+  ({ options }, { headers, body }) => {
     Object.assign(headers, ghcHeaders);
     headers['x-initiator'] = options.initiator;
+    sendEffort(body, options.reasoningEffort);
   },
   true,
 );
 const ghcResponses = constructResponses(
   'https://api.githubcopilot.com',
-  ({ options }, { headers }) => {
+  ({ options }, { headers, body }) => {
     Object.assign(headers, ghcHeaders);
     headers['x-initiator'] = options.initiator;
+    sendEffort(body, options.reasoningEffort);
   },
   true,
 );
@@ -117,11 +119,15 @@ export const providers = {
     if (options.useResponses) return ghcResponses(messages, options, auth, fetcher);
     return ghcChatCompletions(messages, options, auth, fetcher);
   }) satisfies ProviderFunction,
-  'GitHub Models': constructChatCompletions('https://models.github.ai/inference', (_, { body }) => {
-    if (body.model.startsWith('meta')) {
-      body.max_tokens = 4000;
-    }
-  }),
+  'GitHub Models': constructChatCompletions(
+    'https://models.github.ai/inference',
+    ({ options }, { body }) => {
+      sendEffort(body, options.reasoningEffort);
+      if (body.model.startsWith('meta')) {
+        body.max_tokens = 4000;
+      }
+    },
+  ),
 };
 
 export type Provider = keyof typeof providers;

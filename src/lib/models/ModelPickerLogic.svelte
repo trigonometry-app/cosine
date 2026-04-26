@@ -106,7 +106,7 @@
     let computedStack = modelStacks[model];
     if (!computedStack) {
       if (modelsDisplayed.length) {
-        model = modelsDisplayed[0].name;
+        selectModel(modelsDisplayed[0].name);
         computedStack = modelStacks[model];
       }
     }
