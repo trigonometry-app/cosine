@@ -237,6 +237,7 @@
         const { provider, options, cost } = resolved;
         const context = bp.context_length;
         const speed = bp.tps ?? 40;
+        const ttfb = bp.ttfb ?? 1000;
         const vision = bp.input_modalities.includes('image');
 
         // Gate GitHub providers on auth
@@ -254,7 +255,7 @@
         );
         const createConn = (name: string, optionsWithEffort: Options, effort?: string): Conn => {
           const groupName = name.split('::')[0];
-          const adjustedSpeed = speed * (groupName.includes(' Thinking') ? 0.7 : 1);
+          const adjustedSpeed = speed * Math.pow(0.5, ttfb / 1000);
           return {
             provider,
             name,

@@ -84,12 +84,7 @@
   {#each modelsDisplayed as { name, visualScore, cost } (name)}
     {@const isThinking = name.endsWith(' Thinking')}
     {@const baseName = isThinking ? name.slice(0, -9) : name}
-    <button
-      class="model m3-layer"
-      data-model={name}
-      style:--score="{visualScore * 100}%"
-      animate:flip={{ duration: 400, easing: easeEmphasized }}
-    >
+    <button class="model m3-layer" data-model={name} style:--score="{visualScore * 100}%">
       <span>
         {baseName}
         {#if isThinking}

@@ -12,6 +12,7 @@ export type Root = Array<{
     input_modalities: string[];
     output_modalities: string[];
     tps?: number;
+    ttfb?: number;
     reasoning_efforts: string[];
     extra?: {
       model_picker_enabled?: boolean;
