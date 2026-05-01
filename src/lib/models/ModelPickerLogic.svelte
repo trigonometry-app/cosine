@@ -119,6 +119,7 @@
 
   // Set to a provider key to only enable that provider for testing
   const DEBUG_PROVIDER: Provider | null = null;
+  const DEBUG_SCORING = true;
 
   const BROKIE_URL =
     'https://raw.githubusercontent.com/trigonometry-app/brokierouter/refs/heads/main/models.json';
@@ -255,16 +256,17 @@
         );
         const createConn = (name: string, optionsWithEffort: Options, effort?: string): Conn => {
           const groupName = name.split('::')[0];
-          const adjustedSpeed = speed * Math.pow(0.5, ttfb / 1000);
+          const isThinking = groupName.endsWith(' Thinking');
+          const timeFor100Tokens = ttfb / 1000 + (100 + (isThinking ? 50 : 0)) / speed;
           return {
             provider,
             name,
             options: optionsWithEffort,
             context,
             vision,
-            stackScore: Math.log10(adjustedSpeed) - cost,
+            stackScore: -Math.log10(timeFor100Tokens) - cost,
             specs: {
-              speed: adjustedSpeed,
+              speed: timeFor100Tokens,
               cost,
               groupName,
               effort,
@@ -435,7 +437,7 @@
         const activeVariant = variants.find((v) => v.name == model) || variants[0];
         const stack = modelStacks[activeVariant.name];
 
-        const speed = Math.log(stack[0].specs.speed);
+        const speed = -Math.log(stack[0].specs.speed);
         const elo = resolvedEloByGroup[groupName] ?? DEFAULT_ELO;
         const cost = stack[0].specs.cost;
         return [groupName, { speed, elo, cost }] as const;
@@ -443,9 +445,24 @@
 
     const minElo = 1200;
     const eloRange = maxKnownElo - minElo;
-    const minSpeed = Math.log(20);
-    const maxSpeed = Math.log(2500);
+    const maxSpeed = -Math.log(0.3);
+    const minSpeed = -Math.log(74);
     const speedRange = maxSpeed - minSpeed;
+    if (DEBUG_SCORING) {
+      console.table(
+        modelEntries.map(([name, m]) => {
+          const normElo = eloRange ? (m.elo - minElo) / eloRange : 0.5;
+          const normSpeed = speedRange ? (m.speed - minSpeed) / speedRange : 0.5;
+          return {
+            name,
+            elo: m.elo,
+            normElo: +normElo.toFixed(2),
+            rawSpeed: +m.speed.toFixed(3),
+            normSpeed: +normSpeed.toFixed(2),
+          };
+        }),
+      );
+    }
     let modelEntriesScored = modelEntries
       .map(([name, m]) => {
         const normElo = eloRange ? (m.elo - minElo) / eloRange : 0.5;
