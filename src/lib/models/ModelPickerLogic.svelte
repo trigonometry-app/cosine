@@ -66,41 +66,42 @@
   const resolveProvider = (
     brokieProvider: BrokieProvider,
   ): { provider: Provider; options: OptionsBase; cost: number } | null => {
-    const { id, model_id, cost_multiplier, extra } = brokieProvider;
+    const { provider: providerId, model_id, cost_multiplier, extra } = brokieProvider;
     const useResponses = extra?.supported_endpoints?.includes('/responses');
+    const [actualModelId, endpointTag] = model_id.split(';');
 
-    if (id.startsWith('openrouter-free/')) {
+    if (providerId === 'openrouter-free') {
       return {
         provider: 'OpenRouter Free via Cosine',
-        options: { model: model_id, providerRestriction: id.slice('openrouter-free/'.length) },
+        options: { model: actualModelId, providerRestriction: endpointTag },
         cost: 0,
       };
     }
-    if (id.startsWith('hack-club/')) {
+    if (providerId === 'hack-club') {
       return {
         provider: 'Hack Club via Cosine',
-        options: { model: model_id, providerRestriction: id.slice('hack-club/'.length) },
+        options: { model: actualModelId, providerRestriction: endpointTag },
         cost: 0,
       };
     }
-    if (id === 'groq-free')
-      return { provider: 'Groq via Cosine', options: { model: model_id }, cost: 0 };
-    if (id === 'cerebras-free')
-      return { provider: 'Cerebras via Cosine', options: { model: model_id }, cost: 0 };
-    if (id === 'google-free')
-      return { provider: 'Gemini via Cosine', options: { model: model_id }, cost: 0 };
-    if (id === 'github-copilot') {
+    if (providerId === 'groq-free')
+      return { provider: 'Groq via Cosine', options: { model: actualModelId }, cost: 0 };
+    if (providerId === 'cerebras-free')
+      return { provider: 'Cerebras via Cosine', options: { model: actualModelId }, cost: 0 };
+    if (providerId === 'google-free')
+      return { provider: 'Gemini via Cosine', options: { model: actualModelId }, cost: 0 };
+    if (providerId === 'github-copilot') {
       if (!extra?.model_picker_enabled) return null;
       return {
         provider: 'GitHub Copilot',
-        options: { model: model_id, useResponses },
+        options: { model: actualModelId, useResponses },
         cost: cost_multiplier ?? 0,
       };
     }
-    if (id === 'github-models')
-      return { provider: 'GitHub Models', options: { model: model_id }, cost: 0 };
-    if (id === 'crofai' || id.startsWith('crofai/')) {
-      return { provider: 'CrofAI via Cosine', options: { model: model_id }, cost: 0 };
+    if (providerId === 'github-models')
+      return { provider: 'GitHub Models', options: { model: actualModelId }, cost: 0 };
+    if (providerId === 'crofai') {
+      return { provider: 'CrofAI via Cosine', options: { model: actualModelId }, cost: 0 };
     }
     return null;
   };

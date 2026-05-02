@@ -2,7 +2,7 @@ export type Root = Array<{
   id: string;
   name: string;
   providers: Array<{
-    id: string;
+    provider: string;
     model_id: string;
     context_length: number;
     pricing?: {
