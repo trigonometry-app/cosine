@@ -58,7 +58,6 @@
   const BROKIE_URL =
     'https://raw.githubusercontent.com/trigonometry-app/brokierouter/refs/heads/main/models.json';
   const CACHE_KEY = 'models/brokierouter';
-  const CACHE_STALE_MS = 30 * 60 * 1000;
   const DEFAULT_ELO = 1200;
   const DEFAULT_TPS = 40;
   const DEFAULT_TTFB = 1000;
@@ -106,25 +105,19 @@
     return null;
   };
 
-  // Fetch only if cache is missing or stale
   let brokieModels: BrokieModels = $state(cache[CACHE_KEY] || []);
-  {
-    const cachedAt = cache[CACHE_KEY + '_ts'];
-    if (!brokieModels.length || !cachedAt || Date.now() - cachedAt > CACHE_STALE_MS) {
-      (async () => {
-        try {
-          const r = await fetch(BROKIE_URL);
-          if (!r.ok) throw new Error(`${r.status}`);
-          const data: BrokieModels = await r.json();
-          brokieModels = data;
-          cache[CACHE_KEY] = data;
-          cache[CACHE_KEY + '_ts'] = Date.now();
-        } catch (e) {
-          console.error('Failed to fetch models:', e);
-        }
-      })();
+  const updateModels = async () => {
+    try {
+      const r = await fetch(BROKIE_URL);
+      if (!r.ok) throw new Error(`${r.status}`);
+      const data: BrokieModels = await r.json();
+      brokieModels = data;
+      cache[CACHE_KEY] = data;
+    } catch (e) {
+      console.error('Failed to fetch models:', e);
     }
-  }
+  };
+  updateModels();
 
   // Round minContext to nearest 1k to avoid recalculating on small changes
   let minContextBucketed = $derived(Math.ceil(minContext / 1024) * 1024);
