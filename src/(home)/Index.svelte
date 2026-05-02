@@ -12,28 +12,10 @@
   import TextLoader from '/lib/TextLoader.svelte';
   import ONav from '/lib/ONav.svelte';
   import OHistory from '/lib/OHistory.svelte';
-  import sign from './sign.remote';
-
   let stack: Stack = $state([]);
   let messages: Message[] = $state([]);
   let enabledTools: string[] = $state([]);
   let selectedPrompt: string = $state('None');
-
-  let petitionName = $state('');
-  let petitionMessage = $state('');
-  let petitionSubmitting = $state(false);
-  let petitionDone = $state(false);
-
-  const handleSign = async () => {
-    if (!petitionName.trim()) return;
-    petitionSubmitting = true;
-    try {
-      await sign({ name: petitionName.trim(), message: petitionMessage.trim() || undefined });
-      petitionDone = true;
-    } finally {
-      petitionSubmitting = false;
-    }
-  };
 
   let context = $derived(
     ((messages.reduce((acc, msg) => {
@@ -131,46 +113,13 @@
     {/if}
   </div>
 {:else}
-  <div class="hack-club-thing">
-    <p>
-      Hack Club is a charity that helps teens code, and they just added 200+ models to Cosine. But
-      they're about to remove them. Sign this if you want to keep using models like Claude Opus 4.7
-      and Gemini 3.1 Pro.
-    </p>
-    {#if petitionDone}
-      <p class="petition-done">Thanks for signing!</p>
-    {:else}
-      <form
-        onsubmit={(e) => {
-          e.preventDefault();
-          handleSign();
-        }}
-      >
-        <input
-          id="name"
-          placeholder="Your name"
-          required
-          bind:value={petitionName}
-          disabled={petitionSubmitting}
-        />
-        <textarea
-          placeholder="Message - think how these models help you code, or how they make Cosine better (optional)"
-          bind:value={petitionMessage}
-          disabled={petitionSubmitting}
-        ></textarea>
-        <button type="submit" disabled={petitionSubmitting || !petitionName.trim()}>
-          {petitionSubmitting ? 'Signing...' : 'Sign'}
-        </button>
-      </form>
-    {/if}
-  </div>
-  <!-- <p
+  <p
     style:color="var(--m3c-on-surface-variant)"
     style:margin-block="auto"
     style:text-align="center"
   >
-    Also try <a href="https://github.com/0k-web/0k#launch-0k">0K</a>.
-  </p> -->
+    Hoping Hack Club will keep this going!
+  </p>
 {/if}
 <div class="input">
   <OInput {abort} animate={hasConnected} {submit} />
@@ -231,61 +180,5 @@
   }
   a {
     color: var(--m3c-secondary);
-  }
-  .hack-club-thing {
-    margin-block: auto;
-    text-align: center;
-    max-width: 28rem;
-    align-self: center;
-    display: flex;
-    flex-direction: column;
-    gap: 1rem;
-    color: var(--m3c-on-surface-variant);
-    & form {
-      display: flex;
-      flex-direction: column;
-      gap: 0.5rem;
-      align-items: center;
-    }
-    & input,
-    & textarea {
-      width: 100%;
-      padding: 0.5rem 0.75rem;
-      border-radius: 0.75rem;
-      border: 1px solid var(--m3c-outline-variant);
-      background: var(--m3c-surface-container);
-      color: var(--m3c-on-surface);
-      font: inherit;
-      resize: vertical;
-      &:focus {
-        outline: 2px solid var(--m3c-primary);
-        outline-offset: -1px;
-      }
-      &:disabled {
-        opacity: 0.6;
-      }
-    }
-    & textarea {
-      min-height: 4rem;
-    }
-    & button {
-      @apply --m3-label-large;
-      padding: 0.5rem 1.5rem;
-      height: 2.5rem;
-      border-radius: var(--m3-shape-full);
-      border: none;
-      background: var(--m3c-primary);
-      color: var(--m3c-on-primary);
-      cursor: pointer;
-      transition: var(--m3-easing-fast);
-      &:disabled {
-        opacity: 0.6;
-        cursor: not-allowed;
-      }
-    }
-  }
-  .petition-done {
-    color: var(--m3c-primary);
-    font-weight: 600;
   }
 </style>
