@@ -20,9 +20,7 @@
   {#snippet children({
     model,
     modelsDisplayed,
-    eloWeight,
     thinking,
-    setWeight,
     setThinking,
     selectModel,
     currentReasoningEffort,
@@ -58,7 +56,6 @@
         bottomRight
         {modelsDisplayed}
         {selectModel}
-        bind:sort={() => eloWeight, setWeight}
         bind:thinking={() => thinking, setThinking}
         bind:choosingSince
       />

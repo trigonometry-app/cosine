@@ -246,13 +246,11 @@
       </button>
     </div>
   {/if}
-  <ModelPickerLogic bind:stack bind:model minContext={0} useImageInput={false} eloWeight={0.8}>
+  <ModelPickerLogic bind:stack bind:model minContext={0} useImageInput={false}>
     {#snippet children({
       model,
       modelsDisplayed,
-      eloWeight,
       thinking,
-      setWeight,
       setThinking,
       selectModel,
     })}
@@ -270,7 +268,6 @@
           bottomRight
           {modelsDisplayed}
           {selectModel}
-          bind:sort={() => eloWeight, setWeight}
           bind:thinking={() => thinking, setThinking}
           bind:choosingSince
         />

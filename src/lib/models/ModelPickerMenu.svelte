@@ -1,31 +1,22 @@
 <script lang="ts">
-  import { Button, easeEmphasized, Slider } from 'm3-svelte';
+  import { Button, easeEmphasized } from 'm3-svelte';
   import { slide } from 'svelte/transition';
-  import { flip } from 'svelte/animate';
-  import iconBolt from '@ktibow/iconset-material-symbols/bolt-rounded';
-  import iconBrain from '@ktibow/iconset-material-symbols/psychology';
 
   let {
     bottomRight = false,
     modelsDisplayed,
-    sort = $bindable(),
     thinking = $bindable(),
     choosingSince = $bindable(),
     selectModel,
   }: {
     bottomRight?: boolean;
-    modelsDisplayed: Array<{ name: string; visualScore: number; cost: number }>;
-    sort: number;
+    modelsDisplayed: Array<{ name: string; pareto: boolean; cost: number; elo: number }>;
     thinking: 'only' | 'exclude' | undefined;
     choosingSince: number | undefined;
     selectModel: (name: string) => void;
   } = $props();
 
-  const formatSort = (n: number) => {
-    if (n < 0.33) return 'Speed';
-    if (n > 0.67) return 'Intelligence';
-    return 'Balanced';
-  };
+  let showAll = $state(false);
 </script>
 
 <svelte:window
@@ -41,8 +32,6 @@
     if (choosingSince && Date.now() - choosingSince > 333) {
       const label = target.closest('label');
       if (label?.classList.contains('m3-container')) return;
-      const sliderContainer = target.closest('.slider-container');
-      if (sliderContainer) return;
       const button = target.closest('button');
       const newModel = button?.dataset.model;
       if (newModel) {
@@ -58,20 +47,7 @@
   class:bottomRight
   transition:slide={{ duration: 500, easing: easeEmphasized }}
 >
-  <div class="slider-container">
-    <Slider
-      bind:value={sort}
-      min={0}
-      max={1}
-      step={0.01}
-      size="l"
-      showValue={true}
-      format={formatSort}
-      vertical={true}
-      leadingIcon={iconBolt}
-      trailingIcon={iconBrain}
-    />
-  </div>
+  <Button square label><input type="checkbox" bind:checked={showAll} />Show all</Button>
   <div class="gap"></div>
   <Button square label><input type="radio" value="only" bind:group={thinking} />Thinking</Button>
   <Button square label><input type="radio" value="exclude" bind:group={thinking} />Direct</Button>
@@ -81,20 +57,28 @@
   class:bottomRight
   transition:slide={{ duration: 500, easing: easeEmphasized }}
 >
-  {#each modelsDisplayed as { name, visualScore, cost } (name)}
+  {#each modelsDisplayed as { name, pareto, cost, elo } (name)}
     {@const isThinking = name.endsWith(' Thinking')}
     {@const baseName = isThinking ? name.slice(0, -9) : name}
-    <button class="model m3-layer" data-model={name} style:--score="{visualScore * 100}%">
-      <span>
-        {baseName}
-        {#if isThinking}
-          <span style:opacity="0.5">Thinking</span>
+    {@const hidden = !showAll && !pareto}
+    {#if !hidden}
+      <button
+        class="model m3-layer"
+        class:non-pareto={!pareto}
+        data-model={name}
+        style:--score="{Math.min(100, Math.max(0, (elo - 1327) / 2))}%"
+      >
+        <span>
+          {baseName}
+          {#if isThinking}
+            <span style:opacity="0.5">Thinking</span>
+          {/if}
+        </span>
+        {#if cost > 0}
+          <span class="cost-badge">{cost}×</span>
         {/if}
-      </span>
-      {#if cost > 0}
-        <span class="cost-badge">{cost}×</span>
-      {/if}
-    </button>
+      </button>
+    {/if}
   {/each}
 </div>
 
@@ -121,12 +105,6 @@
       right: 16rem;
     }
   }
-  .slider-container {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    border-radius: 0.5rem;
-  }
   .popup-models {
     width: 15rem;
     overflow: auto;
@@ -142,8 +120,7 @@
     display: flex;
     align-items: center;
     text-align: start;
-    height: 3rem;
-    min-height: 2rem;
+    min-height: 3rem;
     padding-inline: 0.5rem;
     border-radius: 0.5rem;
 
@@ -151,17 +128,22 @@
 
     background-color: color-mix(
       in oklab,
-      var(--m3c-secondary-container-subtle) var(--score),
+      var(--m3c-secondary-container) var(--score),
       var(--m3c-surface-container-low)
     );
     color: color-mix(
       in oklab,
-      var(--m3c-on-secondary-container-subtle) var(--score),
+      var(--m3c-on-secondary-container) var(--score),
       var(--m3c-on-surface-variant)
     );
     transition:
       background-color var(--m3-easing-slow),
       color var(--m3-easing-slow);
+
+    &.non-pareto {
+      opacity: 0.5;
+      min-height: 2rem;
+    }
 
     .cost-badge {
       display: flex;
