@@ -266,26 +266,25 @@
         return {
           name: groupName,
           elo: resolvedElo[groupName] ?? DEFAULT_ELO,
-          speed: -Math.log(stack[0].specs.speed),
+          speed: stack[0].specs.speed,
           cost: stack[0].specs.cost,
         };
       })
       .filter(Boolean) as { name: string; elo: number; speed: number; cost: number }[];
 
-    // O(n log n) Pareto: sort by elo desc, sweep for max speed
-    entries.sort((a, b) => b.elo - a.elo || b.speed - a.speed);
+    // O(n log n) Pareto: sort by elo desc, sweep for min speed (lower = faster)
+    entries.sort((a, b) => b.elo - a.elo || a.speed - b.speed);
     const paretoSet = new Set<string>();
-    let maxSpeedAbove = -Infinity;
+    let minSpeedAbove = Infinity;
     for (let i = 0; i < entries.length; ) {
       const groupElo = entries[i].elo;
-      const groupMaxSpeed = entries[i].speed;
-      // All entries with this elo and speed == groupMaxSpeed are pareto if groupMaxSpeed > maxSpeedAbove
-      if (groupMaxSpeed > maxSpeedAbove) {
+      const groupMinSpeed = entries[i].speed;
+      if (groupMinSpeed < minSpeedAbove) {
         let j = i;
         while (
           j < entries.length &&
           entries[j].elo === groupElo &&
-          entries[j].speed === groupMaxSpeed
+          entries[j].speed === groupMinSpeed
         ) {
           paretoSet.add(entries[j].name);
           j++;
@@ -294,7 +293,7 @@
       // Advance past entire elo group
       let j = i;
       while (j < entries.length && entries[j].elo === groupElo) j++;
-      maxSpeedAbove = Math.max(maxSpeedAbove, groupMaxSpeed);
+      minSpeedAbove = Math.min(minSpeedAbove, groupMinSpeed);
       i = j;
     }
 
