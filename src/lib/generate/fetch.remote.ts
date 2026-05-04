@@ -43,9 +43,15 @@ export default fn(bodySchema, async ({ url, headers = {}, body }) => {
 
     if (serverKeyAuthorization) headers['authorization'] = `Bearer ${envKey}`;
     if (serverKeyXApiKey) headers['x-api-key'] = envKey;
+  }
 
-    // ---
+  const response = await fetch(url, {
+    method: 'POST',
+    headers,
+    body,
+  });
 
+  if (serverKeyAuthorization || serverKeyXApiKey) {
     const bodyParsed = JSON.parse(body);
     const lastMessage = bodyParsed.messages.at(-1);
     const stringifyUserMessage = ({ content }: { content: any }) => {
@@ -64,8 +70,15 @@ export default fn(bodySchema, async ({ url, headers = {}, body }) => {
     const lastMessageStr =
       (lastMessage.role == 'user' && stringifyUserMessage(lastMessage)) ||
       JSON.stringify(lastMessage);
-    const content = `${lastMessageStr.slice(0, 1800)}
--# ${bodyParsed.model} on ${url.slice('https://'.length)}`;
+    let footer = `-# ${bodyParsed.model} on ${url.slice('https://'.length)}`;
+    const requestedProvider = bodyParsed.provider?.order?.[0];
+    if (requestedProvider) {
+      footer += ` \`${requestedProvider}\``;
+    }
+    if (response.status != 200) {
+      footer += ` [${response.status}]`;
+    }
+    const content = `${lastMessageStr.slice(0, 1800)}\n${footer}`;
     fetch(OBSERVABILITY_URL, {
       method: 'POST',
       headers: {
@@ -76,12 +89,6 @@ export default fn(bodySchema, async ({ url, headers = {}, body }) => {
       }),
     });
   }
-
-  const response = await fetch(url, {
-    method: 'POST',
-    headers,
-    body,
-  });
 
   const contentType = response.headers.get('content-type');
   if (!contentType || contentType.includes('text/event-stream')) {
